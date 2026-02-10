@@ -1,5 +1,6 @@
 package com.auth.practice.infrastructure.security.config;
 
+import com.auth.practice.infrastructure.security.oauth.CustomOAuth2UserService;
 import com.auth.practice.infrastructure.security.oauth.OAuth2AuthenticationSuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,9 +18,13 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final CustomOAuth2UserService customOAuth2UserService;
 
-    public SecurityConfig(OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler) {
+    public SecurityConfig(
+            OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler,
+            CustomOAuth2UserService customOAuth2UserService) {
         this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
+        this.customOAuth2UserService = customOAuth2UserService;
     }
 
     @Bean
@@ -30,13 +35,16 @@ public class SecurityConfig {
             
             // 요청 권한 설정
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/login", "/error").permitAll()  // 인증 없이 접근 가능
+                .requestMatchers("/", "/login", "/error", "/oauth2/**").permitAll()  // 인증 없이 접근 가능
                 .anyRequest().authenticated()  // 나머지는 인증 필요
             )
             
             // OAuth2 로그인 설정
             .oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")  // 커스텀 로그인 페이지
+                .userInfoEndpoint(userInfo -> userInfo
+                    .userService(customOAuth2UserService)  // Custom UserService 사용
+                )
                 .successHandler(oAuth2AuthenticationSuccessHandler)  // 로그인 성공 핸들러
             )
             

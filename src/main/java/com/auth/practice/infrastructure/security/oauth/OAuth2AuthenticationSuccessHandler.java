@@ -26,14 +26,16 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
         
-        // OAuth2User 정보 추출
-        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+        // CustomOAuth2User 정보 추출
+        CustomOAuth2User customOAuth2User = (CustomOAuth2User) authentication.getPrincipal();
         
         // 사용자 정보 로깅 (디버깅용)
         log.info("OAuth2 로그인 성공!");
-        log.info("사용자 이름: {}", (Object) oAuth2User.getAttribute("name"));
-        log.info("사용자 이메일: {}", (Object) oAuth2User.getAttribute("email"));
-        log.info("프로필 이미지: {}", (Object) oAuth2User.getAttribute("picture"));
+        log.info("Provider: {}", customOAuth2User.getOAuth2UserInfo().getProvider());
+        log.info("Provider ID: {}", customOAuth2User.getOAuth2UserInfo().getProviderId());
+        log.info("사용자 이름: {}", customOAuth2User.getUserName());
+        log.info("사용자 이메일: {}", customOAuth2User.getEmail());
+        log.info("프로필 이미지: {}", customOAuth2User.getProfileImageUrl());
         
         // 홈 페이지로 리다이렉트
         getRedirectStrategy().sendRedirect(request, response, "/home");

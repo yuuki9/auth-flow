@@ -40,3 +40,7 @@ out/
 .env
 .env.local
 .env.*.local
+
+### Application Configuration ###
+**/application-local.yaml
+**/application-local.yml

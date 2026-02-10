@@ -49,29 +49,59 @@
             gap: 15px;
         }
         
-        .btn-google {
+        .social-login a {
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 15px 20px;
-            background: white;
             border: 2px solid #ddd;
             border-radius: 10px;
             text-decoration: none;
-            color: #333;
             font-weight: 600;
             transition: all 0.3s ease;
             cursor: pointer;
             font-size: 16px;
         }
         
-        .btn-google:hover {
-            border-color: #4285f4;
-            box-shadow: 0 5px 20px rgba(66, 133, 244, 0.2);
+        .social-login a:hover {
             transform: translateY(-2px);
         }
         
-        .btn-google img {
+        .btn-google {
+            background: white;
+            color: #333;
+        }
+        
+        .btn-google:hover {
+            border-color: #4285f4;
+            box-shadow: 0 5px 20px rgba(66, 133, 244, 0.2);
+        }
+        
+        .btn-kakao {
+            background: #FEE500;
+            color: #000000;
+            border-color: #FEE500;
+        }
+        
+        .btn-kakao:hover {
+            background: #FDD835;
+            border-color: #FDD835;
+            box-shadow: 0 5px 20px rgba(254, 229, 0, 0.3);
+        }
+        
+        .btn-naver {
+            background: #03C75A;
+            color: white;
+            border-color: #03C75A;
+        }
+        
+        .btn-naver:hover {
+            background: #02B350;
+            border-color: #02B350;
+            box-shadow: 0 5px 20px rgba(3, 199, 90, 0.3);
+        }
+        
+        .social-login svg {
             width: 24px;
             height: 24px;
             margin-right: 10px;
@@ -118,6 +148,7 @@
         <p class="subtitle">소셜 계정으로 간편하게 로그인하세요</p>
         
         <div class="social-login">
+            <!-- Google 로그인 -->
             <a href="/oauth2/authorization/google" class="btn-google">
                 <svg width="24" height="24" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -127,15 +158,32 @@
                 </svg>
                 구글로 로그인
             </a>
+            
+            <!-- Kakao 로그인 -->
+            <a href="/oauth2/authorization/kakao" class="btn-kakao">
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                    <path fill="#000000" d="M12 3C6.48 3 2 6.58 2 11c0 2.8 1.83 5.26 4.58 6.7-.2.74-.74 2.65-.84 3.08-.13.53.19.52.4.38.16-.11 2.5-1.72 3.45-2.37.79.11 1.6.17 2.41.17 5.52 0 10-3.58 10-8S17.52 3 12 3z"/>
+                </svg>
+                카카오로 로그인
+            </a>
+            
+            <!-- Naver 로그인 -->
+            <a href="/oauth2/authorization/naver" class="btn-naver">
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                    <path fill="white" d="M16.273 12.845L7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z"/>
+                </svg>
+                네이버로 로그인
+            </a>
         </div>
         
         <a href="/" class="back-link">← 메인으로 돌아가기</a>
         
         <div class="info-box">
-            <strong>설정 필요:</strong>
-            <p>1. Google Cloud Console에서 OAuth 2.0 클라이언트 생성</p>
-            <p>2. application.yaml에 Client ID/Secret 설정</p>
-            <p>3. 리다이렉트 URI: http://localhost:8080/login/oauth2/code/google</p>
+            <strong>⚙️ OAuth 설정 필요:</strong>
+            <p>• Google: Google Cloud Console</p>
+            <p>• Kakao: Kakao Developers</p>
+            <p>• Naver: Naver Developers</p>
+            <p style="margin-top: 10px;">리다이렉트 URI: <br><code style="background: #f8f9fa; padding: 2px 5px; border-radius: 3px;">http://localhost:8080/login/oauth2/code/{provider}</code></p>
         </div>
     </div>
 </body>

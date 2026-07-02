@@ -41,6 +41,9 @@ out/
 .env.local
 .env.*.local
 
+### Brainstorming / Superpowers ###
+.superpowers/
+
 ### Application Configuration ###
 **/application-local.yaml
 **/application-local.yml

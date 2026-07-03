@@ -2,36 +2,27 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Auth Guide — JWT Only</title>
+    <title>Auth Guide — base/jwt-only</title>
     <style>
-        body { font-family: sans-serif; max-width: 700px; margin: 50px auto; padding: 0 20px; }
+        body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 0 20px; }
         input { display: block; margin: 6px 0; padding: 8px; width: 100%; box-sizing: border-box; }
-        button { margin: 8px 4px; padding: 10px 20px; cursor: pointer; }
+        button { margin: 8px 0; padding: 10px 20px; cursor: pointer; }
         pre { background: #f4f4f4; padding: 16px; border-radius: 4px; overflow-x: auto; }
         .track-label { background: #d4edda; padding: 8px 16px; border-radius: 4px; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>Auth Guide</h1>
-    <p class="track-label">트랙: JWT Only (base/jwt-only)</p>
-    <p>소셜 로그인 없음. ID/PW → JWT 발급 → Authorization 헤더 인증.</p>
+    <h1>Auth Guide — base/jwt-only</h1>
+    <p class="track-label">베이스: ID/PW + JWT core (저장 패턴 미포함 — pattern/jwt-* 브랜치에서 추가)</p>
 
-    <h2>로그인</h2>
+    <h2>로그인 (JWT 발급 API 확인)</h2>
     <input id="email" type="email" placeholder="이메일" value="test@example.com">
     <input id="password" type="password" placeholder="비밀번호" value="password123">
-    <button onclick="login()">로그인</button>
-
-    <h2>API 테스트</h2>
-    <button onclick="getMe()">내 정보 조회 (/api/auth/me)</button>
-    <button onclick="refreshToken()">토큰 갱신 (/api/auth/refresh)</button>
-    <button onclick="logout()">로그아웃 (/api/auth/logout)</button>
+    <button onclick="login()">POST /api/auth/login</button>
 
     <pre id="result">결과가 여기에 표시됩니다</pre>
 
     <script>
-        let accessToken = null;
-        let refreshTokenValue = null;
-
         async function login() {
             const res = await fetch('/api/auth/login', {
                 method: 'POST',
@@ -42,54 +33,8 @@
                 })
             });
             const data = await res.json();
-            if (res.ok) {
-                accessToken = data.accessToken;
-                refreshTokenValue = data.refreshToken;
-                log(`로그인 성공!\nAccess Token: ${accessToken.substring(0, 30)}...\nRefresh Token: ${refreshTokenValue.substring(0, 30)}...`);
-            } else {
-                log('로그인 실패: ' + JSON.stringify(data));
-            }
-        }
-
-        async function getMe() {
-            if (!accessToken) { log('먼저 로그인하세요.'); return; }
-            const res = await fetch('/api/auth/me', {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            const data = await res.json();
-            log(`GET /api/auth/me → ${res.status}\n` + JSON.stringify(data, null, 2));
-        }
-
-        async function refreshToken() {
-            if (!refreshTokenValue) { log('먼저 로그인하세요.'); return; }
-            const res = await fetch('/api/auth/refresh', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refreshToken: refreshTokenValue })
-            });
-            const data = await res.json();
-            if (res.ok) {
-                accessToken = data.accessToken;
-                refreshTokenValue = data.refreshToken;
-                log(`토큰 갱신 성공 (Rotation)\n새 Access Token: ${accessToken.substring(0, 30)}...`);
-            } else {
-                log('갱신 실패: ' + JSON.stringify(data));
-            }
-        }
-
-        async function logout() {
-            if (!accessToken) { log('먼저 로그인하세요.'); return; }
-            await fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            accessToken = null;
-            refreshTokenValue = null;
-            log('로그아웃 완료. 토큰 삭제됨 (Redis 및 클라이언트).');
-        }
-
-        function log(msg) {
-            document.getElementById('result').textContent = msg;
+            document.getElementById('result').textContent =
+                `POST /api/auth/login → ${res.status}\n` + JSON.stringify(data, null, 2);
         }
     </script>
 </body>

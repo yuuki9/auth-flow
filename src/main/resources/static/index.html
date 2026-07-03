@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Auth Guide - base/oauth2-foundation</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 0 20px; }
+        button { margin: 8px 0; padding: 10px 20px; cursor: pointer; }
+        pre { background: #f4f4f4; padding: 16px; border-radius: 4px; overflow-x: auto; }
+        .track-label { background: #e8f4fd; padding: 8px 16px; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Auth Guide — base/oauth2-foundation</h1>
+    <p class="track-label">트랙: OAuth2 + PostgreSQL (JWT 미포함 — pattern/oauth-* 브랜치에서 추가)</p>
+
+    <h2>소셜 로그인</h2>
+    <button onclick="location.href='/oauth2/authorization/google'">Google 로그인</button>
+    <button onclick="location.href='/oauth2/authorization/kakao'">Kakao 로그인</button>
+    <button onclick="location.href='/oauth2/authorization/naver'">Naver 로그인</button>
+
+    <h2>내 정보</h2>
+    <button onclick="getMe()">GET /api/auth/me</button>
+    <pre id="result">결과가 여기에 표시됩니다</pre>
+
+    <script>
+        async function getMe() {
+            const res = await fetch('/api/auth/me', { credentials: 'include' });
+            const data = await res.json();
+            document.getElementById('result').textContent =
+                `GET /api/auth/me → ${res.status}\n` + JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>

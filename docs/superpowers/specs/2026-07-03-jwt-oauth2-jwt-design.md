@@ -1,26 +1,29 @@
 # JWT + OAuth2+JWT 현업 수준 인증 시스템 설계
 
-**날짜**: 2026-07-03  
-**목적**: JWT lifecycle을 먼저 순수하게 익힌 뒤, OAuth2가 로그인 진입점만 교체한다는 것을 명확히 이해하는 2-트랙 학습 구조.
+**날짜**: 2026-07-03 (대칭 구조 반영)  
+**목적**: JWT lifecycle을 익힌 뒤 OAuth2가 로그인 진입점만 교체함을 이해하고, **두 트랙 모두 동일한 3가지 JWT 저장 패턴**을 비교 학습한다.
 
 ---
 
-## 1. 브랜치 구조
+## 1. 브랜치 구조 (대칭)
 
 ```
-main                          ← 코드 정리 (Thymeleaf 제거, STAGE 파일 삭제)
-│
-├─ base/jwt-only              ← [트랙 1] ID/PW 로그인 → JWT + Refresh lifecycle 학습
-│
-└─ base/oauth2-foundation     ← [트랙 2] OAuth2 소셜 로그인 → JWT + Refresh
-    ├─ pattern/cookie-only         ← JWT 저장: HttpOnly Cookie (현업 표준)
-    ├─ pattern/memory-access       ← JWT 저장: Access=메모리, Refresh=Cookie
-    └─ pattern/localstorage        ← JWT 저장: localStorage (경고 포함, 학습용)
+main
+├─ base/jwt-only
+│   ├─ pattern/jwt-cookie-only
+│   ├─ pattern/jwt-memory-access
+│   └─ pattern/jwt-localstorage
+└─ base/oauth2-foundation
+    ├─ pattern/oauth-cookie-only
+    ├─ pattern/oauth-memory-access
+    └─ pattern/oauth-localstorage
 ```
 
 **핵심 학습 diff:**
-- `git diff base/jwt-only base/oauth2-foundation` → **OAuth2가 로그인 진입점만 교체함**을 한눈에 확인
-- `git diff base/oauth2-foundation pattern/cookie-only` → 저장 패턴이 무엇을 바꾸는지 확인
+- `git diff base/jwt-only base/oauth2-foundation` → 로그인 진입점만 다름
+- `git diff base/jwt-only pattern/jwt-cookie-only` → jwt 트랙 저장 패턴
+- `git diff base/oauth2-foundation pattern/oauth-cookie-only` → oauth 트랙 저장 패턴
+- `git diff pattern/jwt-cookie-only pattern/oauth-cookie-only` → 같은 패턴, 다른 로그인
 
 ---
 
@@ -32,8 +35,9 @@ main                          ← 코드 정리 (Thymeleaf 제거, STAGE 파일 
 | 사용자 식별 | DB의 email + BCrypt 검증 | OAuth Provider 콜백 → DB upsert |
 | User 테이블 | email, passwordHash, name, role | email, name, provider, providerId, profileImageUrl, role |
 | SecurityConfig | stateless, no oauth2Login | stateless, oauth2Login 활성 |
-| 토큰 전달 | response body → Authorization 헤더 | 패턴 브랜치에서 결정 |
-| 저장 패턴 비교 | 없음 (단일 패턴으로 lifecycle에 집중) | 3개 패턴 브랜치로 비교 |
+| JWT core (base) | JwtProvider + AuthService + Redis | 없음 (pattern에서 추가) |
+| 토큰 저장/전달 | pattern/jwt-* 브랜치 | pattern/oauth-* 브랜치 |
+| 저장 패턴 비교 | cookie / memory-access / localStorage | 동일 3종 |
 
 **JWT 발급 이후는 완전히 동일:**
 - `JwtProvider` (토큰 생성/검증)

@@ -1,41 +1,65 @@
 package com.auth.practice.infrastructure.security.config;
 
-import com.auth.practice.infrastructure.security.oauth.CustomOAuth2UserService;
-import com.auth.practice.infrastructure.security.oauth.OAuth2AuthenticationSuccessHandler;
+import com.auth.practice.application.auth.LoginService;
+import com.auth.practice.infrastructure.security.jwt.JwtAuthenticationFilter;
+import com.auth.practice.infrastructure.security.jwt.JwtProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-    private final CustomOAuth2UserService customOAuth2UserService;
+    private final LoginService loginService;
+    private final JwtProvider jwtProvider;
 
-    public SecurityConfig(
-            OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler,
-            CustomOAuth2UserService customOAuth2UserService) {
-        this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
-        this.customOAuth2UserService = customOAuth2UserService;
+    public SecurityConfig(LoginService loginService, JwtProvider jwtProvider) {
+        this.loginService = loginService;
+        this.jwtProvider = jwtProvider;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(loginService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/error", "/oauth2/**").permitAll()
+                .requestMatchers("/api/auth/login", "/api/auth/refresh",
+                                 "/index.html", "/error").permitAll()
                 .anyRequest().authenticated()
             )
-            .oauth2Login(oauth2 -> oauth2
-                .userInfoEndpoint(userInfo -> userInfo
-                    .userService(customOAuth2UserService)
-                )
-                .successHandler(oAuth2AuthenticationSuccessHandler)
-            );
+            .addFilterBefore(new JwtAuthenticationFilter(jwtProvider),
+                    UsernamePasswordAuthenticationFilter.class)
+            .authenticationProvider(authenticationProvider());
 
         return http.build();
     }

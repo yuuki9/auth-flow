@@ -37,7 +37,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         log.info("사용자 이메일: {}", customOAuth2User.getEmail());
         log.info("프로필 이미지: {}", customOAuth2User.getProfileImageUrl());
         
-        // 홈 페이지로 리다이렉트
-        getRedirectStrategy().sendRedirect(request, response, "/home");
+        // Phase 1: Thymeleaf 제거 후 임시 리다이렉트. pattern 브랜치에서 JWT 응답으로 교체 예정.
+        getRedirectStrategy().sendRedirect(request, response, "/");
     }
 }

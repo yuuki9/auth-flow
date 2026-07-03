@@ -8,11 +8,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Spring Security 설정
- * - OAuth 2.0 로그인 활성화
- * - 권한 설정
- */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -30,30 +25,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // CSRF 설정 (개발 단계에서는 비활성화, 추후 활성화 예정)
             .csrf(csrf -> csrf.disable())
-            
-            // 요청 권한 설정
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/login", "/error", "/oauth2/**").permitAll()  // 인증 없이 접근 가능
-                .anyRequest().authenticated()  // 나머지는 인증 필요
+                .requestMatchers("/", "/error", "/oauth2/**").permitAll()
+                .anyRequest().authenticated()
             )
-            
-            // OAuth2 로그인 설정
             .oauth2Login(oauth2 -> oauth2
-                .loginPage("/login")  // 커스텀 로그인 페이지
                 .userInfoEndpoint(userInfo -> userInfo
-                    .userService(customOAuth2UserService)  // Custom UserService 사용
+                    .userService(customOAuth2UserService)
                 )
-                .successHandler(oAuth2AuthenticationSuccessHandler)  // 로그인 성공 핸들러
-            )
-            
-            // 로그아웃 설정
-            .logout(logout -> logout
-                .logoutUrl("/logout")
-                .logoutSuccessUrl("/")
-                .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID")
+                .successHandler(oAuth2AuthenticationSuccessHandler)
             );
 
         return http.build();

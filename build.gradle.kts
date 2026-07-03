@@ -6,7 +6,7 @@ plugins {
 
 group = "com.auth.practice"
 version = "0.0.1-SNAPSHOT"
-description = "OAuth 2.0, JWT, OpenID Connect"
+description = "OAuth 2.0, JWT, OpenID Connect 현업 수준 학습 프로젝트"
 
 java {
 	toolchain {
@@ -20,18 +20,11 @@ repositories {
 }
 
 dependencies {
-	// OAuth2 Client (구글 로그인 용)
 	implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-web")
-	
-	// Thymeleaf (HTML 템플릿 엔진)
-	implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
-	implementation("org.thymeleaf.extras:thymeleaf-extras-springsecurity6")
-	
-	// .env 파일 지원
 	implementation("me.paulschwarz:spring-dotenv:4.0.0")
-	
+
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.security:spring-security-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")

@@ -1,6 +1,8 @@
 package com.auth.practice.infrastructure.security.config;
 
 import com.auth.practice.application.auth.LoginService;
+import com.auth.practice.infrastructure.security.jwt.JwtAuthenticationFilter;
+import com.auth.practice.infrastructure.security.jwt.JwtProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -12,15 +14,18 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final LoginService loginService;
+    private final JwtProvider jwtProvider;
 
-    public SecurityConfig(LoginService loginService) {
+    public SecurityConfig(LoginService loginService, JwtProvider jwtProvider) {
         this.loginService = loginService;
+        this.jwtProvider = jwtProvider;
     }
 
     @Bean
@@ -52,9 +57,10 @@ public class SecurityConfig {
                                  "/index.html", "/error").permitAll()
                 .anyRequest().authenticated()
             )
-            // [왜?] JwtAuthenticationFilter는 pattern/jwt-* 브랜치에서 추가한다.
-            //        base는 JWT core(AuthService)만 제공하고, 저장/전달 방식은 pattern에서 결정한다.
-            .authenticationProvider(authenticationProvider());
+            .authenticationProvider(authenticationProvider())
+            // [왜?] UsernamePasswordAuthenticationFilter 앞에 배치: 폼 로그인 처리 전에 JWT 검증을 먼저 수행.
+            .addFilterBefore(new JwtAuthenticationFilter(jwtProvider),
+                    UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

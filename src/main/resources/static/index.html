@@ -2,33 +2,141 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Auth Guide - base/oauth2-foundation</title>
+    <title>Auth Guide — OAuth2 + JWT</title>
     <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 0 20px; }
-        button { margin: 8px 0; padding: 10px 20px; cursor: pointer; }
-        pre { background: #f4f4f4; padding: 16px; border-radius: 4px; overflow-x: auto; }
-        .track-label { background: #e8f4fd; padding: 8px 16px; border-radius: 4px; font-weight: bold; }
+        body { font-family: sans-serif; max-width: 720px; margin: 50px auto; padding: 0 20px; }
+        button { margin: 6px 4px; padding: 10px 18px; cursor: pointer; }
+        pre { background: #f4f4f4; padding: 16px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; }
+        .pattern { background: #e8f4fd; padding: 10px 16px; border-radius: 4px; font-weight: bold; margin-bottom: 16px; }
+        .warning { background: #fff3cd; padding: 10px 16px; border-radius: 4px; margin-bottom: 16px; }
+        h2 { margin-top: 28px; }
     </style>
 </head>
 <body>
-    <h1>Auth Guide — base/oauth2-foundation</h1>
-    <p class="track-label">트랙: OAuth2 + PostgreSQL (JWT 미포함 — pattern/oauth-* 브랜치에서 추가)</p>
+    <h1>Auth Guide — OAuth2 + JWT</h1>
+    <div class="pattern" id="patternLabel">패턴 로딩 중...</div>
 
     <h2>소셜 로그인</h2>
     <button onclick="location.href='/oauth2/authorization/google'">Google 로그인</button>
     <button onclick="location.href='/oauth2/authorization/kakao'">Kakao 로그인</button>
     <button onclick="location.href='/oauth2/authorization/naver'">Naver 로그인</button>
 
-    <h2>내 정보</h2>
-    <button onclick="getMe()">GET /api/auth/me</button>
+    <h2>API 테스트</h2>
+    <button onclick="callMe()">내 정보 조회 (/api/auth/me)</button>
+    <button onclick="callRefresh()">토큰 갱신 (/api/auth/refresh)</button>
+    <button onclick="callLogout()">로그아웃 (/api/auth/logout)</button>
+
     <pre id="result">결과가 여기에 표시됩니다</pre>
 
     <script>
-        async function getMe() {
-            const res = await fetch('/api/auth/me', { credentials: 'include' });
+        // ── 패턴별 토큰 저장소 ──────────────────────────────────────────────
+        // URL 프래그먼트에서 토큰 읽기 (memory / localstorage 패턴용)
+        const fragment = Object.fromEntries(
+            location.hash.replace('#', '').split('&')
+                .filter(s => s).map(s => s.split('=').map(decodeURIComponent))
+        );
+
+        let memoryAccessToken = null; // [memory 패턴] JS 변수 — 탭 닫으면 소멸
+
+        if (fragment.access_token && fragment.refresh_token) {
+            // localstorage 패턴
+            localStorage.setItem('accessToken', fragment.access_token);
+            localStorage.setItem('refreshToken', fragment.refresh_token);
+            setResult('localstorage 패턴: 토큰을 localStorage에 저장함.\n(⚠️ XSS 취약 — 학습 목적)');
+        } else if (fragment.access_token) {
+            // memory 패턴
+            memoryAccessToken = fragment.access_token;
+            setResult('memory 패턴: accessToken을 JS 변수에 저장함.\n(탭 닫으면 소멸)');
+        }
+
+        // 프래그먼트 제거 (보안: URL에 토큰 노출 방지)
+        if (fragment.access_token) history.replaceState(null, '', location.pathname);
+
+        // ── 패턴 감지 및 레이블 표시 ─────────────────────────────────────────
+        function detectPattern() {
+            if (localStorage.getItem('accessToken')) return 'localstorage';
+            if (memoryAccessToken) return 'memory';
+            return 'cookie';
+        }
+
+        function updatePatternLabel() {
+            const p = detectPattern();
+            const labels = {
+                cookie: '패턴: HttpOnly Cookie (현업 표준 — XSS 방어)',
+                memory: '패턴: Memory Access Token + Refresh Cookie',
+                localstorage: '⚠️ 패턴: localStorage (학습용 — XSS 취약)'
+            };
+            document.getElementById('patternLabel').textContent = labels[p] || p;
+        }
+        updatePatternLabel();
+
+        // ── API 헬퍼 ────────────────────────────────────────────────────────
+        function getAuthHeader() {
+            const token = memoryAccessToken || localStorage.getItem('accessToken');
+            return token ? { 'Authorization': 'Bearer ' + token } : {};
+        }
+
+        function setResult(text) {
+            document.getElementById('result').textContent = text;
+        }
+
+        async function callMe() {
+            const res = await fetch('/api/auth/me', {
+                credentials: 'include',
+                headers: getAuthHeader()
+            });
             const data = await res.json();
-            document.getElementById('result').textContent =
-                `GET /api/auth/me → ${res.status}\n` + JSON.stringify(data, null, 2);
+            setResult('GET /api/auth/me → ' + res.status + '\n' + JSON.stringify(data, null, 2));
+        }
+
+        async function callRefresh() {
+            const p = detectPattern();
+            let body = undefined;
+            let headers = { 'Content-Type': 'application/json' };
+
+            if (p === 'localstorage') {
+                // localstorage 패턴: refresh token을 body에 담아 전송
+                body = JSON.stringify({ refreshToken: localStorage.getItem('refreshToken') });
+            }
+
+            const res = await fetch('/api/auth/refresh', {
+                method: 'POST',
+                credentials: 'include',
+                headers,
+                body
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                if (data.accessToken && data.refreshToken) {
+                    // localstorage: 둘 다 재저장
+                    localStorage.setItem('accessToken', data.accessToken);
+                    localStorage.setItem('refreshToken', data.refreshToken);
+                } else if (data.accessToken) {
+                    // memory: access token만 갱신
+                    memoryAccessToken = data.accessToken;
+                }
+                // cookie: 서버가 쿠키를 직접 갱신 — 클라이언트 처리 없음
+            }
+
+            setResult('POST /api/auth/refresh → ' + res.status + '\n' + JSON.stringify(data, null, 2));
+        }
+
+        async function callLogout() {
+            const res = await fetch('/api/auth/logout', {
+                method: 'POST',
+                credentials: 'include',
+                headers: getAuthHeader()
+            });
+            const data = await res.json();
+
+            // localstorage: 클라이언트가 직접 삭제
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            memoryAccessToken = null;
+            updatePatternLabel();
+
+            setResult('POST /api/auth/logout → ' + res.status + '\n' + JSON.stringify(data, null, 2));
         }
     </script>
 </body>

@@ -2,6 +2,16 @@ spring:
   application:
     name: auth-guide
 
+  # ─────────────────────────────────────────────────────────────────────
+  # [패턴 전환] 아래 한 줄만 바꾸면 JWT 저장 방식이 바뀐다.
+  #
+  #  cookie      : Access + Refresh → HttpOnly 쿠키 (XSS 방어, 현업 표준)
+  #  memory      : Access → JS 변수(탭 닫으면 소멸), Refresh → HttpOnly 쿠키
+  #  localstorage: Access + Refresh → localStorage (⚠️ XSS 취약, 학습용)
+  # ─────────────────────────────────────────────────────────────────────
+  profiles:
+    active: cookie
+
   security:
     oauth2:
       client:
@@ -68,7 +78,10 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
-# JWT 설정은 pattern/oauth-* 브랜치에서 추가됩니다
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiry-ms: 900000    # 15분
+  refresh-token-expiry-ms: 604800000 # 7일
 
 logging:
   level:

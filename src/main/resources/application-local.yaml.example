@@ -21,6 +21,9 @@ spring:
       host: localhost
       port: 6379
 
+jwt:
+  secret: your-256-bit-secret-key-here-must-be-at-least-32-chars
+
 server:
   port: 8080
 

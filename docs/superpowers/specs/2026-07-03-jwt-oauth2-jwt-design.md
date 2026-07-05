@@ -13,14 +13,11 @@ main                          ← 코드 정리 (Thymeleaf 제거, STAGE 파일 
 ├─ base/jwt-only              ← [트랙 1] ID/PW 로그인 → JWT + Refresh lifecycle 학습
 │
 └─ base/oauth2-foundation     ← [트랙 2] OAuth2 소셜 로그인 → JWT + Refresh
-    ├─ pattern/cookie-only         ← JWT 저장: HttpOnly Cookie (현업 표준)
-    ├─ pattern/memory-access       ← JWT 저장: Access=메모리, Refresh=Cookie
-    └─ pattern/localstorage        ← JWT 저장: localStorage (경고 포함, 학습용)
+                                  (3가지 JWT 저장 패턴을 storage 패키지로 구분)
 ```
 
 **핵심 학습 diff:**
 - `git diff base/jwt-only base/oauth2-foundation` → **OAuth2가 로그인 진입점만 교체함**을 한눈에 확인
-- `git diff base/oauth2-foundation pattern/cookie-only` → 저장 패턴이 무엇을 바꾸는지 확인
 
 ---
 
@@ -32,8 +29,8 @@ main                          ← 코드 정리 (Thymeleaf 제거, STAGE 파일 
 | 사용자 식별 | DB의 email + BCrypt 검증 | OAuth Provider 콜백 → DB upsert |
 | User 테이블 | email, passwordHash, name, role | email, name, provider, providerId, profileImageUrl, role |
 | SecurityConfig | stateless, no oauth2Login | stateless, oauth2Login 활성 |
-| 토큰 전달 | response body → Authorization 헤더 | 패턴 브랜치에서 결정 |
-| 저장 패턴 비교 | 없음 (단일 패턴으로 lifecycle에 집중) | 3개 패턴 브랜치로 비교 |
+| 토큰 전달 | response body → Authorization 헤더 | storage 패키지별 상이 |
+| 저장 패턴 비교 | 없음 (단일 패턴으로 lifecycle에 집중) | 3개 storage 패키지로 비교 |
 
 **JWT 발급 이후는 완전히 동일:**
 - `JwtProvider` (토큰 생성/검증)
@@ -107,11 +104,25 @@ domain/oauth/
 infrastructure/security/oauth/
 ├── CustomOAuth2User.java
 ├── CustomOAuth2UserService.java  (DB upsert)
-├── OAuth2AuthenticationSuccessHandler.java
+├── OAuth2SuccessHandler.java
 └── userinfo/
     ├── GoogleOAuth2UserInfo.java
     ├── KakaoOAuth2UserInfo.java
     └── NaverOAuth2UserInfo.java
+infrastructure/security/storage/
+├── RefreshTokenHandler.java        (공통 인터페이스)
+├── cookie/
+│   ├── CookieJwtFilter.java
+│   ├── CookieOAuth2SuccessHandler.java
+│   └── CookieRefreshTokenHandler.java
+├── localstorage/
+│   ├── LocalStorageJwtFilter.java
+│   ├── LocalStorageOAuth2SuccessHandler.java
+│   └── LocalStorageRefreshTokenHandler.java
+└── memory/
+    ├── MemoryJwtFilter.java
+    ├── MemoryOAuth2SuccessHandler.java
+    └── MemoryRefreshTokenHandler.java
 ```
 
 ---
@@ -138,9 +149,9 @@ infrastructure/security/oauth/
 2. Provider 인증 페이지 → callback
 3. CustomOAuth2UserService.loadUser()
    └─ DB에 User upsert (신규: INSERT, 기존: 이름/프로필 UPDATE)
-4. OAuth2AuthenticationSuccessHandler
+4. OAuth2SuccessHandler / 패턴별 SuccessHandler
    └─ AuthService.issueTokens(userId) 호출
-5. 토큰 전달: [패턴 브랜치에서 결정]
+5. 토큰 전달: storage 패키지별 방식 (cookie / localstorage / memory)
 ```
 
 **OAuth ↔ JWT 책임 분리:**
@@ -152,7 +163,7 @@ infrastructure/security/oauth/
 ```
 1. POST /api/auth/refresh
    - jwt-only: body { refreshToken }
-   - oauth: 패턴별 (쿠키 or body)
+   - oauth: storage 패키지별 (쿠키 or body)
 2. JwtProvider로 서명 검증
 3. Redis에서 저장된 토큰과 일치 여부 확인
 4. 기존 토큰 Redis에서 삭제 → 새 Access/Refresh Token 발급 → Redis에 저장
@@ -164,25 +175,25 @@ infrastructure/security/oauth/
 ```
 1. POST /api/auth/logout
 2. Redis에서 해당 userId의 Refresh Token 삭제
-3. 패턴별 쿠키 삭제 (cookie 패턴) 또는 클라이언트 처리
+3. 패키지별 쿠키 삭제 (cookie 패키지) 또는 클라이언트 처리
 ```
 
 ---
 
-## 6. 패턴별 차이점 (oauth 트랙)
+## 6. 패턴별 차이점 (oauth 트랙 — storage 패키지)
 
-### pattern/cookie-only
+### storage/cookie
 - Access Token + Refresh Token: HttpOnly Cookie
 - API 요청: 쿠키 자동 전송
 - XSS 위험: 낮음 / CSRF 방어 필요 (SameSite=Strict)
 
-### pattern/memory-access
+### storage/memory
 - Access Token: response body → JS 변수 (탭 닫으면 소멸)
 - Refresh Token: HttpOnly Cookie
 - API 요청: `Authorization: Bearer {accessToken}`
 - Silent Refresh: 401 응답 시 `/api/auth/refresh` 자동 호출
 
-### pattern/localstorage
+### storage/localstorage
 - Access Token + Refresh Token: response body → localStorage
 - API 요청: `Authorization: Bearer {accessToken}`
 - XSS 위험: **높음** — 코드 내 경고 주석 명시

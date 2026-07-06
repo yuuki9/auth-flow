@@ -41,38 +41,7 @@ sequenceDiagram
 
 ### base/jwt-only — ID/PW → JWT
 
-```
-클라이언트              서버                        Redis
-     │                   │                            │
-     │─ POST /api/auth/  │                            │
-     │  login ─────────>│                            │
-     │  {email,password} │                            │
-     │                   │ LoginService: BCrypt 검증  │
-     │                   │ AuthService.issueTokens()  │
-AuthenticationManager → LoginService(UserDetailsService): DB 조회 + BCrypt 검증
-     │                   │── save(식별자, RT, 7d) ──>│
-     │<── {AT, RT} ──────│                            │
-     │                   │                            │
-     │  [API 요청]        │                            │
-     │─ Authorization:   │                            │
-     │  Bearer {AT} ───>│                            │
-     │                   │ JwtAuthenticationFilter    │
-     │                   │ AT 검증 → userId 추출      │
-     │<── 200 응답 ───────│                            │
-     │                   │                            │
-     │  [토큰 갱신]       │                            │
-     │─ POST /refresh ──>│                            │
-     │  {refreshToken}   │── findByUserId ──────────>│
-     │                   │<── RT ────────────────────│
-     │                   │ RTR: 기존 삭제 → 새 발급   │
-     │                   │── save(userId, newRT) ───>│
-     │<── {newAT, newRT} ─│                            │
-     │                   │                            │
-     │  [로그아웃]        │                            │
-     │─ POST /logout ───>│                            │
-     │                   │── deleteByUserId ─────────>│
-     │<── 200 ───────────│                            │
-```
+![JWT-only 인증 흐름](docs/diagrams/jwt-only-flow.png)
 
 ---
 

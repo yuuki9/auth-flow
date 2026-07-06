@@ -79,29 +79,7 @@ sequenceDiagram
 
 ![OAuth2 로그인 흐름](docs/diagrams/oauth2-login-flow.png)
 
-```mermaid
-sequenceDiagram
-    participant client
-    participant server
-    participant provider as provider<br/>(Google/Kakao/Naver)
-    participant redis
-
-    client->>server: GET /oauth2/authorization/{provider}
-    server->>provider: 리다이렉트
-    Note over provider: 동의 화면
-    provider->>server: Authorization Code
-
-    activate server
-    Note over server: CustomOAuth2UserService<br/>소셜 로그인 성공 → 우리 DB 사용자로 매핑 → JWT 발급 준비
-    Note over server: OAuth2SuccessHandler<br/>JWT 발급 + 클라이언트 전달 + 홈으로 보내기
-    server->>redis: save(userId, RT)
-    server->>client: /index.html 리다이렉트 (패턴별 토큰 전달)
-    Note over server: [토큰 갱신 / 로그아웃은 base/jwt-only와 동일 흐름]
-    deactivate server
-```
-
-**패턴별 토큰 전달:** `cookie` — HttpOnly 쿠키 AT+RT · `memory` — body AT + HttpOnly RT · `localstorage` — redirect `#AT&RT` (⚠️ 학습용)  
-토큰 갱신·로그아웃은 `base/jwt-only`와 동일 흐름
+**패턴별 토큰 전달:** `cookie` — HttpOnly 쿠키 AT+RT · `memory` — body AT + HttpOnly RT · `localstorage` — redirect `#AT&RT` (⚠️ 학습용)
 
 ---
 

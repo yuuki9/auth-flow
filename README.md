@@ -9,30 +9,33 @@
 
 ![OAuth2 로그인 흐름](docs/diagrams/oauth2-login-flow.png)
 
-**패턴별 토큰 전달:**
-
-| 패턴 | Access Token | Refresh Token |
-|---|---|---|
-| `cookie` | HttpOnly 쿠키 (15분) | HttpOnly 쿠키 (7일, path=/api/auth/refresh) |
-| `memory` | URL `#fragment` → JS 변수 | HttpOnly 쿠키 (7일) |
-| `localstorage` | URL `#fragment` → localStorage | URL `#fragment` → localStorage (⚠️ 학습용) |
-
-API 요청·토큰 갱신·로그아웃 흐름은 아래 **SOP** 섹션을 참고하세요.
-
----
-
 ## 3가지 토큰 저장 패턴
 
-`application.yaml`의 `spring.profiles.active` 한 줄로 전환합니다.
-
-| 프로필 | Access Token | Refresh Token | 보안 수준 |
-|---|---|---|---|
-| `cookie` (기본값) | HttpOnly 쿠키 | HttpOnly 쿠키 | 높음 — XSS 방어, 현업 표준 |
-| `memory` | JS 변수 (탭 닫으면 소멸) | HttpOnly 쿠키 | 높음 — Silent Refresh 패턴 |
-| `localstorage` | localStorage | localStorage | ⚠️ 낮음 — XSS 취약, 학습용 |
-
-각 패턴은 `infrastructure/security/storage/{cookie|memory|localstorage}/` 패키지로 분리되어 있고  
+`application.yaml`의 `spring.profiles.active` 한 줄로 전환합니다.  
+각 패턴은 `infrastructure/security/storage/{cookie|memory|localstorage}/` 패키지로 분리되어 있고,  
 `@Profile` 어노테이션으로 Spring이 활성 프로필에 맞는 구현체를 자동 선택합니다.
+
+### 패턴별 토큰 전달
+
+| 항목 | `cookie` | `memory` | `localstorage` |
+|------|----------|----------|----------------|
+| **Access Token (AT)** | HttpOnly 쿠키 `access_token` (15분, path=/) | JS 변수 — URL `#fragment`에서 읽어 메모리 보관 (탭 닫으면 소멸) | localStorage `accessToken` |
+| **Refresh Token (RT)** | HttpOnly 쿠키 `refresh_token` (7일, path=/api/auth/refresh) | HttpOnly 쿠키 (동일) | localStorage `refreshToken` |
+| **로그인 성공 시** | `Set-Cookie` AT+RT → `/index.html` 리다이렉트 | `#access_token=...` 리다이렉트 + RT 쿠키 | `#access_token=...&refresh_token=...` 리다이렉트 |
+| **API 요청** | AT 쿠키 자동 전송 | `Authorization: Bearer {AT}` | `Authorization: Bearer {AT}` |
+| **토큰 갱신** | RT 쿠키 자동 전송 (`POST /api/auth/refresh`) | RT 쿠키 자동 전송 | body `{ "refreshToken": "..." }` |
+| **갱신 응답** | AT·RT 쿠키 재설정 | body `{ accessToken }` + RT 쿠키 | body `{ accessToken, refreshToken }` |
+| **로그아웃** | 서버가 AT·RT 쿠키 만료 처리 | RT 쿠키 만료 (AT는 JS에서 폐기) | 클라이언트가 localStorage 직접 삭제 |
+
+### 적합한 사용 사례
+
+| 패턴 | 언제 쓰나 | 보안 | 비고 |
+|------|-----------|------|------|
+| `cookie` | SSR·동일 도메인 **브라우저 웹앱**, 서버가 HTML을 내려주는 구조 | ⭐⭐⭐ — JS가 토큰 접근 불가 (HttpOnly) | **현업 표준** (기본값). CSRF는 `SameSite=Strict`로 방어 |
+| `memory` | **SPA** + API 서버 분리, Silent Refresh로 UX 유지하고 싶을 때 | ⭐⭐⭐ — RT는 HttpOnly, AT만 JS 노출 | AT는 XSS에 취약하지만 **탭/세션 단위**로만 유지 |
+| `localstorage` | **학습·데모** — cookie/memory와 XSS 차이를 비교할 때 | ⚠️ — AT·RT 모두 JS로 탈취 가능 | **운영 환경 사용 금지** |
+
+API 요청·토큰 갱신·로그아웃 단계별 절차는 아래 **SOP** 섹션을 참고하세요.
 
 ---
 

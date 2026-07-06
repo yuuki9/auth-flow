@@ -73,6 +73,62 @@
 
 ---
 
+## SOP (단계별 절차)
+
+### 소셜 로그인
+
+| 단계 | 처리 | 실패 시 |
+|---|---|---|
+| 1 | `GET /oauth2/authorization/{provider}` 수신 | — |
+| 2 | Provider 동의 화면으로 리다이렉트 | — |
+| 3 | Provider가 Authorization Code와 함께 콜백 | 사용자 거부 → 로그인 취소 |
+| 4 | `CustomOAuth2UserService`: Provider별 사용자 정보 파싱 (`OAuth2UserInfoFactory`) | Provider 응답 오류 → 500 |
+| 5 | DB에서 email + provider로 기존 User 조회 | — |
+| 6 | 신규: `INSERT` / 기존: 이름·프로필 `UPDATE` | DB 장애 시 500 |
+| 7 | `OAuth2SuccessHandler` → `AuthService.issueTokens()`: AT(15분) + RT(7일) 생성 | — |
+| 8 | Redis에 `refresh:{userId} = RT` 저장 (TTL 7일) | Redis 장애 시 500 |
+| 9 | 패턴별 토큰 전달 후 `/index.html` 리다이렉트 | — |
+
+**패턴별 9단계 상세:**
+
+| 패턴 | 전달 방식 |
+|---|---|
+| `cookie` | `Set-Cookie: access_token` (HttpOnly, 15분) + `Set-Cookie: refresh_token` (HttpOnly, path=/api/auth/refresh) |
+| `memory` | body `{ accessToken }` + `Set-Cookie: refresh_token` (HttpOnly) |
+| `localstorage` | `redirect /index.html#access_token=...&refresh_token=...` |
+
+### API 요청
+
+| 단계 | 처리 | 실패 시 |
+|---|---|---|
+| 1 | 패턴별 JwtFilter가 AT 추출 (쿠키 or Authorization 헤더) | AT 없으면 SecurityContext 미설정 → 403 |
+| 2 | AT 서명 검증 | 변조·만료 → 403 |
+| 3 | userId 추출 → SecurityContext 설정 | — |
+
+### 토큰 갱신 (RTR)
+
+| 단계 | 처리 | 실패 시 |
+|---|---|---|
+| 1 | `POST /api/auth/refresh` 수신 | — |
+| 2 | `RefreshTokenHandler`: 패턴별 RT 추출 (쿠키 or body) | RT 없으면 400 |
+| 3 | RT 서명 검증 | 변조·만료 → 401 |
+| 4 | Redis에서 저장된 RT 조회 | key 없음 → 401 `"만료·로그아웃·탈취 감지"` |
+| 5 | 수신 RT == 저장 RT 일치 확인 | **불일치 → Redis 즉시 삭제 후 401** `"재사용 감지"` |
+| 6 | 기존 RT 삭제 → 새 AT + RT 발급 → Redis 저장 | — |
+| 7 | `RefreshTokenHandler`: 패턴별 응답 반환 | — |
+
+### 로그아웃
+
+| 단계 | 처리 | 비고 |
+|---|---|---|
+| 1 | `POST /api/auth/logout` 수신 (AT 필요) | AT 없으면 403 |
+| 2 | Redis에서 `refresh:{userId}` 삭제 | RT 즉시 무효화 |
+| 3 | `RefreshTokenHandler.clearOnLogout()`: 패턴별 클라이언트 정리 | cookie만 서버에서 쿠키 삭제 처리 |
+| 4 | 200 반환 | — |
+| ⚠️ | AT는 TTL(15분) 만료까지 서버가 차단 불가 | 클라이언트가 AT 직접 폐기 필요 |
+
+---
+
 ## 로그아웃 정책
 
 **목적:** RT를 즉시 무효화하고, 패턴별 클라이언트 측 토큰도 함께 정리합니다.

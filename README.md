@@ -73,6 +73,29 @@
 
 ---
 
+## 로그아웃 정책
+
+**목적:** RT를 즉시 무효화하고, 패턴별 클라이언트 측 토큰도 함께 정리합니다.
+
+**방식:** `POST /api/auth/logout` → Redis RT 삭제 + `RefreshTokenHandler.clearOnLogout()` 호출
+
+**패턴별 클라이언트 정리:**
+
+| 패턴 | 서버가 추가로 하는 일 | 클라이언트가 해야 할 일 |
+|---|---|---|
+| `cookie` | Set-Cookie로 쿠키 만료 처리 | 없음 (서버가 쿠키 삭제) |
+| `memory` | Set-Cookie로 RT 쿠키 만료 처리 | JS 변수(AT) 직접 폐기 |
+| `localstorage` | 없음 | localStorage에서 AT·RT 직접 삭제 |
+
+**트레이드오프 — AT 즉시 무효화 불가:**  
+RT는 Redis 삭제로 즉시 무효화되지만, AT는 Stateless라 서버가 차단할 수 없습니다.  
+TTL(15분) 내에는 탈취된 AT도 유효합니다. TTL을 짧게 유지하는 이유가 여기 있습니다.
+
+**단일 세션 한계:**  
+Redis key가 `refresh:{userId}`이므로 로그아웃 시 모든 기기가 함께 로그아웃됩니다.
+
+---
+
 ## 엔드포인트
 
 | Method | Path | 설명 |

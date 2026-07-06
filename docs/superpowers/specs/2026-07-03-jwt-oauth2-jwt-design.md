@@ -144,18 +144,30 @@ infrastructure/security/storage/
 
 ### 5-2. OAuth2+JWT 로그인
 
-```
-1. GET /oauth2/authorization/{provider}
-2. Provider 인증 페이지 → callback
-3. CustomOAuth2UserService.loadUser()
-   └─ DB에 User upsert (신규: INSERT, 기존: 이름/프로필 UPDATE)
-4. OAuth2SuccessHandler / 패턴별 SuccessHandler
-   └─ AuthService.issueTokens(userId) 호출
-5. 토큰 전달: storage 패키지별 방식 (cookie / localstorage / memory)
+![OAuth2 로그인 흐름](../../diagrams/oauth2-login-flow.png)
+
+```mermaid
+sequenceDiagram
+    participant client
+    participant server
+    participant provider as provider<br/>(Google/Kakao/Naver)
+    participant redis
+
+    client->>server: GET /oauth2/authorization/{provider}
+    server->>provider: 리다이렉트
+    Note over provider: 동의 화면
+    provider->>server: Authorization Code
+
+    activate server
+    Note over server: CustomOAuth2UserService<br/>소셜 로그인 성공 → 우리 DB 사용자로 매핑 → JWT 발급 준비
+    Note over server: OAuth2SuccessHandler<br/>JWT 발급 + 클라이언트 전달 + 홈으로 보내기
+    server->>redis: save(userId, RT)
+    server->>client: /index.html 리다이렉트 (패턴별 토큰 전달)
+    deactivate server
 ```
 
 **OAuth ↔ JWT 책임 분리:**
-- `OAuth2AuthenticationSuccessHandler` → OAuth 완료 후 `AuthService` 호출만. JWT 직접 다루지 않음
+- `OAuth2SuccessHandler` → OAuth 완료 후 `AuthService.issueTokens()` 호출만. JWT 직접 다루지 않음
 - `AuthService` → 두 트랙의 로그인 결과를 동일한 방식으로 처리하는 오케스트레이터
 
 ### 5-3. 토큰 갱신 (공통 — Refresh Token Rotation)

@@ -7,54 +7,37 @@
 
 ## 로그인 흐름
 
+![OAuth2 로그인 흐름](docs/diagrams/oauth2-login-flow.png)
+
+```mermaid
+sequenceDiagram
+    participant client
+    participant server
+    participant provider as provider<br/>(Google/Kakao/Naver)
+    participant redis
+
+    client->>server: GET /oauth2/authorization/{provider}
+    server->>provider: 리다이렉트
+    Note over provider: 동의 화면
+    provider->>server: Authorization Code
+
+    activate server
+    Note over server: CustomOAuth2UserService<br/>소셜 로그인 성공 → 우리 DB 사용자로 매핑 → JWT 발급 준비
+    Note over server: OAuth2SuccessHandler<br/>JWT 발급 + 클라이언트 전달 + 홈으로 보내기
+    server->>redis: save(userId, RT)
+    server->>client: /index.html 리다이렉트 (패턴별 토큰 전달)
+    deactivate server
 ```
-클라이언트              서버                  Provider        Redis
-     │                   │                      │               │
-     │  [소셜 로그인]     │                      │               │
-     │─ GET /oauth2/     │                      │               │
-     │  authorization/   │                      │               │
-     │  {provider} ────>│                      │               │
-     │                   │──── 리다이렉트 ──────>│               │
-     │                   │                      │ 동의 화면     │
-     │                   │<─── code ────────────│               │
-     │                   │                      │               │
-     │                   │ CustomOAuth2UserService               │
-     │                   │ DB upsert                             │
-     │                   │  신규: INSERT                        │
-     │                   │  기존: 이름·프로필 UPDATE            │
-     │                   │                      │               │
-     │                   │ OAuth2SuccessHandler                  │
-     │                   │ AuthService.issueTokens()             │
-     │                   │ AT 생성 (15분)                       │
-     │                   │ RT 생성 (7일)                        │
-     │                   │──────────────── save(userId, RT) ───>│
-     │                   │                      │               │
-     │  [패턴별 토큰 전달 방식]                                  │
-     │                   │                      │               │
-     │  cookie ←── Set-Cookie: access_token (HttpOnly, 15분)   │
-     │           ←── Set-Cookie: refresh_token (HttpOnly, 7일) │
-     │                   │                      │               │
-     │  memory ←── {accessToken} (body)                        │
-     │           ←── Set-Cookie: refresh_token (HttpOnly, 7일) │
-     │                   │                      │               │
-     │  localstorage ←── redirect #access_token&refresh_token  │
-     │              (⚠️ XSS 취약 — 학습 목적)                   │
-     │                   │                      │               │
-     │  [API 요청 — 패턴 무관]                                   │
-     │─ GET /api/auth/me>│                      │               │
-     │                   │ JwtAuthenticationFilter               │
-     │                   │ AT 검증 → userId 추출                 │
-     │<── {id,name,role} ─│                      │               │
-     │                   │                      │               │
-     │  [토큰 갱신 — 패턴별]                                     │
-     │  cookie    ─ POST /api/auth/refresh (쿠키 자동 전송)     │
-     │  memory    ─ POST /api/auth/refresh (쿠키 자동 전송)     │
-     │  localstorage ─ POST /api/auth/refresh {refreshToken}   │
-     │                   │──── findByUserId ────────────────────>│
-     │                   │<─── 저장된 RT ────────────────────────│
-     │                   │ RTR: 기존 삭제 → 새 AT + RT 발급     │
-     │<── 새 토큰 (패턴별 방식으로 전달)                         │
-```
+
+**패턴별 토큰 전달:**
+
+| 패턴 | Access Token | Refresh Token |
+|---|---|---|
+| `cookie` | HttpOnly 쿠키 (15분) | HttpOnly 쿠키 (7일, path=/api/auth/refresh) |
+| `memory` | URL `#fragment` → JS 변수 | HttpOnly 쿠키 (7일) |
+| `localstorage` | URL `#fragment` → localStorage | URL `#fragment` → localStorage (⚠️ 학습용) |
+
+API 요청·토큰 갱신·로그아웃 흐름은 아래 **SOP** 섹션을 참고하세요.
 
 ---
 

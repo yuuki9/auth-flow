@@ -90,22 +90,30 @@ resources/
 
 ### 4-1. OAuth2 로그인 흐름 (모든 브랜치 공통)
 
-```
-1. 브라우저 → GET /oauth2/authorization/{provider}
-2. Provider 인증 페이지로 리다이렉트
-3. Provider → GET /login/oauth2/code/{provider}?code=...
-4. CustomOAuth2UserService.loadUser()
-   ├─ Provider별 사용자 정보 파싱 (OAuth2UserInfoFactory 활용)
-   └─ DB에 User upsert (신규: INSERT, 기존: 이름/프로필 UPDATE)
-5. OAuth2AuthenticationSuccessHandler
-   ├─ AuthService.issueTokens(userId) 호출
-   ├─ JwtProvider로 Access Token(15분) + Refresh Token(7일) 생성
-   ├─ Redis에 Refresh Token 저장 (key: "refresh:{userId}", TTL: 7일)
-   └─ [패턴별로 토큰 전달 방식 상이] ← 브랜치 분기점
+![OAuth2 로그인 흐름](../../diagrams/oauth2-login-flow.png)
+
+```mermaid
+sequenceDiagram
+    participant client
+    participant server
+    participant provider as provider<br/>(Google/Kakao/Naver)
+    participant redis
+
+    client->>server: GET /oauth2/authorization/{provider}
+    server->>provider: 리다이렉트
+    Note over provider: 동의 화면
+    provider->>server: Authorization Code
+
+    activate server
+    Note over server: CustomOAuth2UserService<br/>소셜 로그인 성공 → 우리 DB 사용자로 매핑 → JWT 발급 준비
+    Note over server: OAuth2SuccessHandler<br/>JWT 발급 + 클라이언트 전달 + 홈으로 보내기
+    server->>redis: save(userId, RT)
+    server->>client: /index.html 리다이렉트 (패턴별 토큰 전달)
+    deactivate server
 ```
 
 **OAuth ↔ JWT 책임 분리 원칙:**
-- `OAuth2AuthenticationSuccessHandler` → OAuth 완료 후 `AuthService`를 호출할 뿐, JWT를 직접 다루지 않음
+- `OAuth2SuccessHandler` → OAuth 완료 후 `AuthService.issueTokens()`를 호출할 뿐, JWT를 직접 다루지 않음
 - `JwtProvider` → 순수 토큰 생성/검증 유틸리티
 - `AuthService` → OAuth 결과와 JWT 라이프사이클을 조율하는 오케스트레이터
 

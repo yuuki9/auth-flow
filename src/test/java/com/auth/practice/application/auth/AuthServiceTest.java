@@ -35,38 +35,57 @@ class AuthServiceTest {
     }
 
     @Test
-    void issueTokens_saves_refreshToken_to_redis() {
+    void issueTokens_saves_with_jti_key() {
         TokenResponse tokens = authService.issueTokens(1L, "USER");
 
         assertThat(tokens.accessToken()).isNotEmpty();
         assertThat(tokens.refreshToken()).isNotEmpty();
-        verify(tokenRepository, times(1)).save(eq(1L), anyString(), anyLong());
+        // jti(String)와 userId(Long)로 저장되는지 검증
+        verify(tokenRepository, times(1)).save(anyString(), eq(1L), anyLong());
     }
 
     @Test
-    void refresh_rotates_refreshToken() {
+    void each_session_gets_independent_jti() {
+        authService.issueTokens(1L, "USER");
+        authService.issueTokens(1L, "USER");
+
+        // 같은 userId로 두 번 로그인해도 서로 다른 jti로 각각 저장
+        verify(tokenRepository, times(2)).save(anyString(), eq(1L), anyLong());
+    }
+
+    @Test
+    void refresh_rotates_token_by_jti() {
         TokenResponse initial = authService.issueTokens(1L, "USER");
-        when(tokenRepository.findByUserId(1L)).thenReturn(Optional.of(initial.refreshToken()));
+        String jti = jwtProvider.getJti(initial.refreshToken());
+        when(tokenRepository.findUserIdByJti(jti)).thenReturn(Optional.of(1L));
 
         TokenResponse rotated = authService.refresh(initial.refreshToken());
 
         assertThat(rotated.accessToken()).isNotEmpty();
-        verify(tokenRepository).deleteByUserId(1L);
-        verify(tokenRepository, times(2)).save(eq(1L), anyString(), anyLong());
+        verify(tokenRepository).deleteByJti(jti);
+        // 최초 발급 1회 + 갱신 후 재발급 1회 = 총 2회
+        verify(tokenRepository, times(2)).save(anyString(), eq(1L), anyLong());
     }
 
     @Test
-    void refresh_throws_when_token_not_in_redis() {
+    void refresh_throws_when_jti_not_in_redis() {
         TokenResponse initial = authService.issueTokens(1L, "USER");
-        when(tokenRepository.findByUserId(1L)).thenReturn(Optional.empty());
+        String jti = jwtProvider.getJti(initial.refreshToken());
+        when(tokenRepository.findUserIdByJti(jti)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.refresh(initial.refreshToken()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void logout_deletes_refreshToken_from_redis() {
-        authService.logout(1L);
-        verify(tokenRepository).deleteByUserId(1L);
+    void logout_deletes_only_given_session_jti() {
+        TokenResponse tokens = authService.issueTokens(1L, "USER");
+        String jti = jwtProvider.getJti(tokens.refreshToken());
+
+        authService.logout(tokens.refreshToken());
+
+        verify(tokenRepository).deleteByJti(jti);
+        // userId 기반 전체 삭제는 호출되지 않음
+        verify(tokenRepository, never()).deleteByJti(argThat(id -> !id.equals(jti)));
     }
 }

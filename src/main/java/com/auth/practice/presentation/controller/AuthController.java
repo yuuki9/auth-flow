@@ -52,14 +52,18 @@ public class AuthController {
         }
     }
 
-    // [왜?] 로그아웃 시 서버는 Redis의 Refresh Token만 삭제한다.
-    //        Access Token은 Stateless이므로 서버에서 직접 무효화할 수 없다.
-    //        클라이언트가 Access Token을 즉시 폐기(메모리/localStorage에서 삭제)해야 한다.
-    // [주의] 클라이언트가 Access Token을 폐기하지 않으면 TTL(15분)이 남아있는 동안 계속 유효.
-    //        이것이 Access Token TTL을 짧게 유지하는 핵심 이유다.
+    // [멀티세션] 로그아웃 시 Refresh Token을 body로 받아 해당 세션(jti)만 삭제한다.
+    //            기존 단일 세션에서는 userId로 삭제했으나, jti 기반에서는 특정 세션만 무효화 가능.
+    //            다른 브라우저의 세션은 유지된다.
+    // [왜?] Access Token은 Stateless이므로 서버에서 직접 무효화할 수 없다.
+    //        클라이언트가 Access Token을 즉시 폐기해야 하며, TTL(15분) 내에는 유효하다.
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@AuthenticationPrincipal Long userId) {
-        authService.logout(userId);
+    public ResponseEntity<?> logout(@RequestBody Map<String, String> body) {
+        String refreshToken = body.get("refreshToken");
+        if (refreshToken == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "refreshToken 필드 없음"));
+        }
+        authService.logout(refreshToken);
         return ResponseEntity.ok(Map.of("message", "로그아웃 완료"));
     }
 }

@@ -26,10 +26,18 @@ class JwtProviderTest {
     }
 
     @Test
-    void generateRefreshToken_returns_valid_token() {
+    void generateRefreshToken_returns_valid_token_with_jti() {
         String token = jwtProvider.generateRefreshToken(1L);
         assertThat(jwtProvider.validateToken(token)).isTrue();
         assertThat(jwtProvider.getUserId(token)).isEqualTo(1L);
+        assertThat(jwtProvider.getJti(token)).isNotEmpty();
+    }
+
+    @Test
+    void each_refreshToken_has_unique_jti() {
+        String token1 = jwtProvider.generateRefreshToken(1L);
+        String token2 = jwtProvider.generateRefreshToken(1L);
+        assertThat(jwtProvider.getJti(token1)).isNotEqualTo(jwtProvider.getJti(token2));
     }
 
     @Test

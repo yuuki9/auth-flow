@@ -1,58 +1,59 @@
-# base/jwt-only — ID/PW 로그인 → JWT
+# feature/multi-session — jti 기반 멀티 세션
 
-ID/PW 로그인 이후 JWT Access Token + Refresh Token을 발급·검증·갱신하는 흐름에 집중하는 브랜치입니다.  
-OAuth2는 없습니다. JWT lifecycle 자체를 먼저 익히는 것이 목적입니다.
+`base/jwt-only`(단일 세션)에서 **jti(JWT ID)를 도입해 멀티 세션을 지원**하도록 확장한 브랜치입니다.
 
-## 로그인 흐름
+## base/jwt-only와의 핵심 차이
+
+```bash
+git diff base/jwt-only feature/multi-session
+```
+
+| | base/jwt-only | feature/multi-session |
+|---|---|---|
+| Redis key | `refresh:{userId}` | `refresh:{jti}` |
+| 동시 로그인 | 나중 로그인이 기존 세션 덮어씀 | 세션마다 독립적인 key |
+| 로그아웃 | userId로 전체 삭제 | 해당 세션 jti만 삭제 |
+
+## jti란?
+
+JWT 표준 payload에 정의된 고유 식별자 클레임(`id`)입니다.  
+Refresh Token 생성 시 UUID를 심어 **토큰 한 장 = Redis key 하나**가 되도록 합니다.
 
 ```
-POST /api/auth/login { email, password }
-  → LoginService: BCrypt 검증
-  → AuthService.issueTokens()
-      ├─ JwtProvider: Access Token (15분)
-      ├─ JwtProvider: Refresh Token (7일)
-      └─ Redis에 Refresh Token 저장
-  → 응답 body: { accessToken, refreshToken, expiresInMs }
+브라우저 A 로그인 → Redis["refresh:aaa-uuid"] = 100
+브라우저 B 로그인 → Redis["refresh:bbb-uuid"] = 100  ← 덮어쓰지 않음
 
-이후 API 요청: Authorization: Bearer {accessToken}
+브라우저 A 갱신  → Redis["refresh:aaa-uuid"] 삭제, Redis["refresh:ccc-uuid"] 생성
+브라우저 B       → Redis["refresh:bbb-uuid"] 그대로 유효
 ```
+
+## 변경된 파일
+
+| 파일 | 변경 내용 |
+|---|---|
+| `JwtProvider` | `generateRefreshToken()`에 `.id(UUID)` 추가, `getJti()` 메서드 추가 |
+| `RefreshTokenRepository` | `save(jti, userId, ttl)` / `findUserIdByJti(jti)` / `deleteByJti(jti)` |
+| `RedisRefreshTokenRepository` | key `refresh:{jti}`, value `userId` |
+| `AuthService` | jti 추출 후 Redis 저장·조회, `logout(refreshToken)`으로 시그니처 변경 |
+| `AuthController` | `/logout` 엔드포인트에서 body의 `refreshToken` 수신 |
 
 ## 엔드포인트
 
-| Method | Path | 설명 |
+| Method | Path | 변경점 |
 |---|---|---|
-| `POST` | `/api/auth/login` | 로그인 → 토큰 발급 |
-| `GET` | `/api/auth/me` | 내 정보 (JWT 필요) |
-| `POST` | `/api/auth/refresh` | Refresh Token으로 재발급 (Rotation) |
-| `POST` | `/api/auth/logout` | Redis에서 Refresh Token 삭제 |
+| `POST` | `/api/auth/login` | 동일 |
+| `GET` | `/api/auth/me` | 동일 |
+| `POST` | `/api/auth/refresh` | 동일 |
+| `POST` | `/api/auth/logout` | body에 `{ "refreshToken": "..." }` 필요 |
 
 ## 실행
 
 ```bash
-docker compose up -d          # PostgreSQL + Redis
-cp .env.example .env          # JWT_SECRET 등 입력
+docker compose up -d
+cp .env.example .env
 ./gradlew bootRun
 ```
 
-앱 시작 시 테스트 계정이 자동 생성됩니다: `test@example.com` / `password123`
-
 ```bash
 ./gradlew test
-```
-
-## 읽을 파일 순서
-
-1. `domain/user/User.java` — 필드 구조
-2. `infrastructure/security/jwt/JwtProvider.java` — 토큰 생성·검증
-3. `application/auth/AuthService.java` — 토큰 발급·Rotation·logout
-4. `infrastructure/security/jwt/JwtAuthenticationFilter.java` — 매 요청 JWT 검증
-5. `infrastructure/security/config/SecurityConfig.java` — Stateless 설정
-6. `presentation/controller/LoginController.java` — 로그인 엔드포인트
-7. `presentation/controller/AuthController.java` — me·refresh·logout
-
-## 다음 단계
-
-```bash
-git checkout base/oauth2-foundation
-git diff base/jwt-only base/oauth2-foundation  # OAuth2가 로그인 진입점만 교체함을 확인
 ```

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 // [왜?] HMAC-SHA256(대칭키) 선택 이유:
 //       단일 서버 또는 내부 신뢰 서비스 간 통신에서는 대칭키가 간단하고 충분히 안전하다.
@@ -50,16 +51,27 @@ public class JwtProvider {
     // [왜?] Refresh Token은 userId만 포함, role은 넣지 않는다.
     //        Refresh Token의 역할은 "새 Access Token 발급 권한 증명"뿐.
     //        role이 변경됐을 때 새 Access Token 발급 시 최신 role을 반영하기 위해서도 분리.
+    // [멀티세션] .id(UUID): jti(JWT ID) 클레임. 토큰마다 고유 식별자를 부여한다.
+    //            같은 userId라도 로그인마다 다른 jti → Redis key를 "refresh:{jti}"로 설계하면
+    //            세션(기기)별로 독립적인 Refresh Token 관리가 가능해진다.
     public String generateRefreshToken(Long userId) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(userId.toString())
+                .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 // [왜?] Refresh Token TTL 7일: 매일 로그인하지 않아도 되는 UX 제공.
                 //        길수록 탈취 시 위험 기간이 길어지므로 RTR(Rotation)로 보완.
                 .expiration(new Date(now.getTime() + refreshTokenExpiryMs))
                 .signWith(key)
                 .compact();
+    }
+
+    // [멀티세션] Refresh Token payload에서 jti를 꺼낸다.
+    //            Redis 조회·삭제 시 userId 대신 jti를 key로 사용하므로 반드시 필요.
+    public String getJti(String token) {
+        return Jwts.parser().verifyWith(key).build()
+                .parseSignedClaims(token).getPayload().getId();
     }
 
     // [보안] 검증 실패 시 false 반환 (예외를 밖으로 던지지 않음).

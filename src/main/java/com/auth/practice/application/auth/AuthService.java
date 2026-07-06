@@ -4,6 +4,9 @@ import com.auth.practice.domain.token.RefreshTokenRepository;
 import com.auth.practice.infrastructure.security.jwt.JwtProperties;
 import com.auth.practice.infrastructure.security.jwt.JwtProvider;
 import com.auth.practice.presentation.dto.TokenResponse;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 // [왜?] 두 트랙(jwt-only, oauth2-foundation)의 로그인 결과를 동일한 방식으로 처리하는 오케스트레이터.
@@ -11,16 +14,35 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService {
 
+    private final AuthenticationManager authenticationManager;
     private final JwtProvider jwtProvider;
     private final RefreshTokenRepository tokenRepository;
     private final JwtProperties jwtProperties;
 
-    public AuthService(JwtProvider jwtProvider,
+    public AuthService(AuthenticationManager authenticationManager,
+                       JwtProvider jwtProvider,
                        RefreshTokenRepository tokenRepository,
                        JwtProperties jwtProperties) {
+        this.authenticationManager = authenticationManager;
         this.jwtProvider = jwtProvider;
         this.tokenRepository = tokenRepository;
         this.jwtProperties = jwtProperties;
+    }
+
+    // [현업패턴] ID/PW 로그인 오케스트레이션을 Application 계층에 둔다.
+    //            AuthenticationManager → LoginService(BCrypt) 검증 후 issueTokens() 호출.
+    //            Controller는 HTTP 변환만 담당하고 인증·토큰 흐름은 여기서 조합한다.
+    public TokenResponse login(String email, String password) {
+        Authentication auth = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(email, password));
+
+        Long userId = Long.parseLong(auth.getName());
+        String role = auth.getAuthorities().stream()
+                .findFirst()
+                .map(a -> a.getAuthority().replace("ROLE_", ""))
+                .orElseThrow(() -> new IllegalStateException("Role not found"));
+
+        return issueTokens(userId, role);
     }
 
     // [현업패턴] Access Token(단명) + Refresh Token(장명) 이중 발급.

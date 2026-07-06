@@ -50,7 +50,7 @@ sequenceDiagram
      │                   │ LoginService: BCrypt 검증  │
      │                   │ AuthService.issueTokens()  │
 AuthenticationManager → LoginService(UserDetailsService): DB 조회 + BCrypt 검증
-     │                   │── save(userId, RT, 7d) ──>│
+     │                   │── save(식별자, RT, 7d) ──>│
      │<── {AT, RT} ──────│                            │
      │                   │                            │
      │  [API 요청]        │                            │

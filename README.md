@@ -6,41 +6,7 @@
 
 ## 로그인 흐름
 
-```
-                         서버                        Redis
-                          │                            │
-  브라우저 A ─ POST /login>│                            │
-                          │ RT 생성 + jti = "aaa"(UUID)│
-                          │──── save("aaa", 100) ─────>│  refresh:aaa = 100
-  브라우저 A <── {AT-A, RT-A}                           │
-                          │                            │
-  브라우저 B ─ POST /login>│                            │
-                          │ RT 생성 + jti = "bbb"(UUID)│
-                          │──── save("bbb", 100) ─────>│  refresh:bbb = 100
-  브라우저 B <── {AT-B, RT-B}                           │  (aaa는 유지됨)
-                          │                            │
-  [A가 토큰 갱신]          │                            │
-  A ─ POST /refresh ─────>│                            │
-      {refreshToken: RT-A}│                            │
-                          │ RT-A에서 jti "aaa" 추출    │
-                          │──── findByJti("aaa") ─────>│
-                          │<─── userId: 100 ───────────│
-                          │──── deleteByJti("aaa") ───>│  refresh:aaa 삭제
-                          │ 새 RT 생성 + jti = "ccc"   │
-                          │──── save("ccc", 100) ─────>│  refresh:ccc = 100
-  A <── {newAT-A, newRT-A}│                            │
-                          │                            │
-  B는 RT-B로 여전히 유효  │                            │  refresh:bbb = 100 유지
-                          │                            │
-  [A만 로그아웃]           │                            │
-  A ─ POST /logout ───────>│                            │
-      {refreshToken: newRT-A}                           │
-                          │ newRT-A에서 jti "ccc" 추출 │
-                          │──── deleteByJti("ccc") ───>│  refresh:ccc 삭제
-  A <── 200               │                            │
-                          │                            │
-  B는 여전히 로그인 유지  │                            │  refresh:bbb = 100 유지
-```
+![멀티세션 인증 흐름](docs/diagrams/multi-session-flow.png)
 
 ---
 

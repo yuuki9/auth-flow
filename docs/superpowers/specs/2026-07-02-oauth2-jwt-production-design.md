@@ -109,6 +109,7 @@ sequenceDiagram
     Note over server: OAuth2SuccessHandler<br/>JWT 발급 + 클라이언트 전달 + 홈으로 보내기
     server->>redis: save(userId, RT)
     server->>client: /index.html 리다이렉트 (패턴별 토큰 전달)
+    Note over server: [토큰 갱신 / 로그아웃은 base/jwt-only와 동일 흐름]
     deactivate server
 ```
 
